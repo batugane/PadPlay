@@ -19,6 +19,10 @@ struct ContentView: View {
     @State private var recordStartTime: Date? = nil
     @State private var recordElapsed: Int = 0
     @State private var recordTimer: Timer? = nil
+    @State private var errorMessage: String? = nil
+    @State private var playbackElapsed: Int = 0
+    @State private var playbackTimer: Timer? = nil
+    @State private var showHelp: Bool = false
     var body: some View {
         ZStack(alignment: .topLeading) {
             VStack(spacing: 20) {
@@ -62,6 +66,63 @@ struct ContentView: View {
                                 } else if event.keyCode == 123 { // Arrow left
                                     grid = grid.decrementBaseNote()
                                     return nil
+                                } else if event.charactersIgnoringModifiers?.lowercased() == "r" {
+                                    if isRecording {
+                                        AudioEngine.shared.stopRecording()
+                                        isRecording = false
+                                        recordTimer?.invalidate()
+                                        recordTimer = nil
+                                    } else if !isPlaying {
+                                        do {
+                                            try AudioEngine.shared.startRecording()
+                                            isRecording = true
+                                            recordStartTime = Date()
+                                            recordElapsed = 0
+                                            recordTimer?.invalidate()
+                                            recordTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+                                                if let start = recordStartTime {
+                                                    recordElapsed = Int(Date().timeIntervalSince(start))
+                                                }
+                                            }
+                                        } catch {
+                                            errorMessage = "Failed to start recording: \(error.localizedDescription)"
+                                        }
+                                    }
+                                    return nil
+                                } else if event.keyCode == 49 { // Space
+                                    if isPlaying {
+                                        AudioEngine.shared.stopPlayback()
+                                        isPlaying = false
+                                        playbackTimer?.invalidate()
+                                        playbackTimer = nil
+                                    } else if !isRecording && AudioEngine.shared.hasRecording() {
+                                        isPlaying = true
+                                        playbackElapsed = 0
+                                        playbackTimer?.invalidate()
+                                        playbackTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+                                            playbackElapsed += 1
+                                        }
+                                        AudioEngine.shared.playbackRecording {
+                                            isPlaying = false
+                                            playbackTimer?.invalidate()
+                                            playbackTimer = nil
+                                        }
+                                    }
+                                    return nil
+                                } else if event.keyCode == 53 { // Esc
+                                    if isPlaying {
+                                        AudioEngine.shared.stopPlayback()
+                                        isPlaying = false
+                                        playbackTimer?.invalidate()
+                                        playbackTimer = nil
+                                    }
+                                    if isRecording {
+                                        AudioEngine.shared.stopRecording()
+                                        isRecording = false
+                                        recordTimer?.invalidate()
+                                        recordTimer = nil
+                                    }
+                                    return nil
                                 }
                                 return event
                             }
@@ -74,6 +135,8 @@ struct ContentView: View {
                             }
                             recordTimer?.invalidate()
                             recordTimer = nil
+                            playbackTimer?.invalidate()
+                            playbackTimer = nil
                         }
                         .onChange(of: isFullscreen) { _,_ in updateCursor() }
                     // Visual grid overlay
@@ -109,21 +172,26 @@ struct ContentView: View {
                 HStack(spacing: 20) {
                     Button(action: {
                         if isRecording {
+                            AudioEngine.shared.stopRecording()
                             isRecording = false
                             recordTimer?.invalidate()
                             recordTimer = nil
                         } else {
-                            isRecording = true
-                            recordStartTime = Date()
-                            recordElapsed = 0
-                            recordTimer?.invalidate()
-                            recordTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-                                if let start = recordStartTime {
-                                    recordElapsed = Int(Date().timeIntervalSince(start))
+                            do {
+                                try AudioEngine.shared.startRecording()
+                                isRecording = true
+                                recordStartTime = Date()
+                                recordElapsed = 0
+                                recordTimer?.invalidate()
+                                recordTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+                                    if let start = recordStartTime {
+                                        recordElapsed = Int(Date().timeIntervalSince(start))
+                                    }
                                 }
+                            } catch {
+                                errorMessage = "Failed to start recording: \(error.localizedDescription)"
                             }
                         }
-                        // TODO: Implement recording logic
                     }) {
                         HStack {
                             Circle()
@@ -133,16 +201,48 @@ struct ContentView: View {
                         }
                     }
                     .foregroundColor(.red)
+                    .disabled(isPlaying)
                     if isRecording {
                         Text(String(format: "%02d:%02d", recordElapsed / 60, recordElapsed % 60))
                             .font(.system(.body, design: .monospaced))
                             .foregroundColor(.red)
                     }
                     Button(isPlaying ? "Stop Playback" : "Playback") {
-                        isPlaying.toggle()
-                        // TODO: Implement playback logic
+                        if isPlaying {
+                            AudioEngine.shared.stopPlayback()
+                            isPlaying = false
+                            playbackTimer?.invalidate()
+                            playbackTimer = nil
+                        } else {
+                            isPlaying = true
+                            playbackElapsed = 0
+                            playbackTimer?.invalidate()
+                            playbackTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+                                playbackElapsed += 1
+                            }
+                            AudioEngine.shared.playbackRecording {
+                                isPlaying = false
+                                playbackTimer?.invalidate()
+                                playbackTimer = nil
+                            }
+                        }
                     }
-                    .disabled(isRecording)
+                    .disabled(isRecording || !AudioEngine.shared.hasRecording())
+                    if isPlaying {
+                        Text(String(format: "%02d:%02d", playbackElapsed / 60, playbackElapsed % 60))
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundColor(.blue)
+                    }
+                    Button("Export") {
+                        AudioEngine.shared.exportRecording()
+                    }
+                    .disabled(!AudioEngine.shared.hasRecording() || isRecording || isPlaying)
+                }
+                if let error = errorMessage {
+                    Text(error)
+                        .foregroundColor(.red)
+                        .font(.caption)
+                        .padding(.top, 4)
                 }
                 // Real-time feedback and customization controls will go here
                 Spacer()
@@ -164,6 +264,42 @@ struct ContentView: View {
             .padding([.top, .leading], 12)
         }
         .background(FullscreenDetector(isFullscreen: $isFullscreen))
+        // Move help button to top right overlay
+        .overlay(
+            Button(action: { showHelp = true }) {
+                Image(systemName: "questionmark.circle")
+                    .font(.title2)
+            }
+            .buttonStyle(PlainButtonStyle())
+            .padding([.top, .trailing], 16),
+            alignment: .topTrailing
+        )
+        // Help sheet
+        .sheet(isPresented: $showHelp) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("PadPlay Help & Shortcuts")
+                    .font(.title2)
+                    .padding(.bottom, 8)
+                Text("Keyboard Shortcuts:")
+                    .font(.headline)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("↑ / ↓ : Change octave")
+                    Text("← / → : Change base note")
+                    Text("R : Start/stop recording")
+                    Text("Space : Start/stop playback")
+                    Text("Esc : Stop playback/recording")
+                }
+                Text("Usage:")
+                    .font(.headline)
+                Text("Use your trackpad to play notes. The horizontal position selects the note, the vertical position selects the octave. Use the controls or keyboard shortcuts to record, playback, and export your performance.")
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
+                Spacer()
+                HStack { Spacer(); Button("Close") { showHelp = false } .keyboardShortcut(.defaultAction) }
+            }
+            .padding(32)
+            .frame(width: 400, height: 350, alignment: .top)
+        }
     }
     // Helper to convert MIDI note to name
     func noteName(midi: UInt8) -> String {

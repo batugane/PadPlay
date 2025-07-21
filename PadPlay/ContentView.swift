@@ -295,10 +295,15 @@ struct ContentView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .multilineTextAlignment(.leading)
                 Spacer()
-                HStack { Spacer(); Button("Close") { showHelp = false } .keyboardShortcut(.defaultAction) }
+                HStack {
+                    Spacer()
+                    Button("Close") { showHelp = false }
+                        .keyboardShortcut(.defaultAction)
+                        .buttonStyle(.borderedProminent)
+                }
             }
             .padding(32)
-            .frame(width: 400, height: 350, alignment: .top)
+            .frame(width: 400, height: 350, alignment: .bottomTrailing)
         }
     }
     // Helper to convert MIDI note to name

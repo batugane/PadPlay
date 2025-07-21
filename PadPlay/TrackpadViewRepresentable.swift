@@ -1,20 +1,44 @@
 import SwiftUI
 import AppKit
 
-/// A SwiftUI wrapper for a custom NSView that handles trackpad touch events.
+/// A SwiftUI wrapper for a custom NSView that handles trackpad touch events and reports notes and finger positions.
 struct TrackpadViewRepresentable: NSViewRepresentable {
+    @Binding var currentNotes: Set<UInt8>
+    @Binding var currentTouches: [(CGPoint, UInt8)]
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(currentNotes: $currentNotes, currentTouches: $currentTouches)
+    }
     func makeNSView(context: Context) -> TrackpadView {
         let view = TrackpadView()
-        // Configure view if needed
+        view.delegate = context.coordinator
         return view
     }
     func updateNSView(_ nsView: TrackpadView, context: Context) {}
+    
+    class Coordinator: NSObject, TrackpadViewDelegate {
+        @Binding var currentNotes: Set<UInt8>
+        @Binding var currentTouches: [(CGPoint, UInt8)]
+        init(currentNotes: Binding<Set<UInt8>>, currentTouches: Binding<[(CGPoint, UInt8)]>) {
+            _currentNotes = currentNotes
+            _currentTouches = currentTouches
+        }
+        func trackpadView(_ view: TrackpadView, didUpdateActiveNotes notes: Set<UInt8>, touches: [(CGPoint, UInt8)]) {
+            currentNotes = notes
+            currentTouches = touches
+        }
+    }
+}
+
+protocol TrackpadViewDelegate: AnyObject {
+    func trackpadView(_ view: TrackpadView, didUpdateActiveNotes notes: Set<UInt8>, touches: [(CGPoint, UInt8)])
 }
 
 /// The underlying NSView that will handle NSEvent and NSTouch for trackpad input.
 class TrackpadView: NSView {
     let grid = NoteGridModel.defaultGrid()
-    var activeTouches: [AnyHashable: (row: Int, col: Int, note: UInt8)] = [:]
+    var activeTouches: [AnyHashable: (row: Int, col: Int, note: UInt8, pos: CGPoint)] = [:]
+    weak var delegate: TrackpadViewDelegate?
     
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -45,7 +69,6 @@ class TrackpadView: NSView {
     /// Map touch locations to grid positions and play/stop notes
     private func handleTouches(event: NSEvent, isEnding: Bool) {
         let touches = event.touches(matching: .touching, in: self)
-        let bounds = self.bounds
         for touch in touches {
             let loc = touch.normalizedPosition // (0,0) bottom-left, (1,1) top-right
             let row = min(grid.rows-1, max(0, Int((1.0 - loc.y) * CGFloat(grid.rows))))
@@ -63,7 +86,10 @@ class TrackpadView: NSView {
                         }
                         // NSTouch on macOS does not have force; use default velocity
                         AudioEngine.shared.playNote(midiNote: note, velocity: 100)
-                        activeTouches[key] = (row, col, note)
+                        activeTouches[key] = (row, col, note, loc)
+                    } else {
+                        // Update position if moved
+                        activeTouches[key]?.pos = loc
                     }
                 }
             }
@@ -79,5 +105,17 @@ class TrackpadView: NSView {
                 }
             }
         }
+        // If no active touches, stop all notes
+        if activeTouches.isEmpty {
+            // Stop all possible notes in the grid
+            let allNotes = Set(grid.noteMapping.flatMap { $0 })
+            for note in allNotes {
+                AudioEngine.shared.stopNote(midiNote: note)
+            }
+        }
+        // Notify delegate of currently played notes and finger positions
+        let currentNotes = Set(activeTouches.values.map { $0.note })
+        let currentTouches = activeTouches.values.map { ($0.pos, $0.note) }
+        delegate?.trackpadView(self, didUpdateActiveNotes: currentNotes, touches: currentTouches)
     }
 } 

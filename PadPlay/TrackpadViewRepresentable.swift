@@ -3,6 +3,7 @@ import AppKit
 
 /// A SwiftUI wrapper for a custom NSView that handles trackpad touch events and reports notes and finger positions.
 struct TrackpadViewRepresentable: NSViewRepresentable {
+    var grid: NoteGridModel
     @Binding var currentNotes: Set<UInt8>
     @Binding var currentTouches: [(CGPoint, UInt8)]
     
@@ -10,11 +11,13 @@ struct TrackpadViewRepresentable: NSViewRepresentable {
         Coordinator(currentNotes: $currentNotes, currentTouches: $currentTouches)
     }
     func makeNSView(context: Context) -> TrackpadView {
-        let view = TrackpadView()
+        let view = TrackpadView(grid: grid)
         view.delegate = context.coordinator
         return view
     }
-    func updateNSView(_ nsView: TrackpadView, context: Context) {}
+    func updateNSView(_ nsView: TrackpadView, context: Context) {
+        nsView.grid = grid
+    }
     
     class Coordinator: NSObject, TrackpadViewDelegate {
         @Binding var currentNotes: Set<UInt8>
@@ -36,16 +39,18 @@ protocol TrackpadViewDelegate: AnyObject {
 
 /// The underlying NSView that will handle NSEvent and NSTouch for trackpad input.
 class TrackpadView: NSView {
-    let grid = NoteGridModel.defaultGrid()
+    var grid: NoteGridModel
     var activeTouches: [AnyHashable: (row: Int, col: Int, note: UInt8, pos: CGPoint)] = [:]
     weak var delegate: TrackpadViewDelegate?
     
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
+    init(grid: NoteGridModel) {
+        self.grid = grid
+        super.init(frame: .zero)
         self.wantsRestingTouches = true
         self.allowedTouchTypes = [.indirect] // Trackpad only
     }
     required init?(coder: NSCoder) {
+        self.grid = NoteGridModel.defaultGrid()
         super.init(coder: coder)
         self.wantsRestingTouches = true
         self.allowedTouchTypes = [.indirect]
@@ -73,11 +78,7 @@ class TrackpadView: NSView {
             let loc = touch.normalizedPosition // (0,0) bottom-left, (1,1) top-right
             let row = min(grid.rows-1, max(0, Int((1.0 - loc.y) * CGFloat(grid.rows))))
             let col = min(grid.columns-1, max(0, Int(loc.x * CGFloat(grid.columns))))
-            // The base note for this column
-            if col < grid.noteMapping[0].count {
-                let baseNote = grid.noteMapping[0][col]
-                // Each row increases the octave (12 semitones)
-                let midiNote = baseNote + UInt8(row) * 12
+            if let midiNote = grid.noteFor(row: row, column: col) {
                 let key = AnyHashable(touch.identity as! NSObject)
                 if isEnding {
                     AudioEngine.shared.stopNote(midiNote: midiNote)
@@ -88,7 +89,6 @@ class TrackpadView: NSView {
                         if let prev = activeTouches[key]?.note {
                             AudioEngine.shared.stopNote(midiNote: prev)
                         }
-                        // NSTouch on macOS does not have force; use default velocity
                         AudioEngine.shared.playNote(midiNote: midiNote, velocity: 100)
                         activeTouches[key] = (row, col, midiNote, loc)
                     } else {
@@ -112,11 +112,12 @@ class TrackpadView: NSView {
         // If no active touches, stop all notes
         if activeTouches.isEmpty {
             // Stop all possible notes in the grid (all octaves)
-            let baseNotes = grid.noteMapping[0]
             var allNotes = Set<UInt8>()
             for row in 0..<grid.rows {
-                for base in baseNotes {
-                    allNotes.insert(base + UInt8(row) * 12)
+                for col in 0..<grid.columns {
+                    if let note = grid.noteFor(row: row, column: col) {
+                        allNotes.insert(note)
+                    }
                 }
             }
             for note in allNotes {

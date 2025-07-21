@@ -14,6 +14,11 @@ struct ContentView: View {
     @State private var currentTouches: [(CGPoint, UInt8)] = []
     @State private var isFullscreen: Bool = false
     @State private var keyMonitor: Any? = nil
+    @State private var isRecording: Bool = false
+    @State private var isPlaying: Bool = false
+    @State private var recordStartTime: Date? = nil
+    @State private var recordElapsed: Int = 0
+    @State private var recordTimer: Timer? = nil
     var body: some View {
         ZStack(alignment: .topLeading) {
             VStack(spacing: 20) {
@@ -67,6 +72,8 @@ struct ContentView: View {
                                 NSEvent.removeMonitor(monitor)
                                 keyMonitor = nil
                             }
+                            recordTimer?.invalidate()
+                            recordTimer = nil
                         }
                         .onChange(of: isFullscreen) { _,_ in updateCursor() }
                     // Visual grid overlay
@@ -98,12 +105,44 @@ struct ContentView: View {
                     }
                     .allowsHitTesting(false)
                 }
-                // Controls for instrument, scale, recording, etc.
+                // Controls for recording and playback only
                 HStack(spacing: 20) {
-                    Button("Instrument") { /* Show instrument picker */ }
-                    Button("Scale") { /* Show scale picker */ }
-                    Button("Record") { /* Start/stop recording */ }
-                    Button("Playback") { /* Play last recording */ }
+                    Button(action: {
+                        if isRecording {
+                            isRecording = false
+                            recordTimer?.invalidate()
+                            recordTimer = nil
+                        } else {
+                            isRecording = true
+                            recordStartTime = Date()
+                            recordElapsed = 0
+                            recordTimer?.invalidate()
+                            recordTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+                                if let start = recordStartTime {
+                                    recordElapsed = Int(Date().timeIntervalSince(start))
+                                }
+                            }
+                        }
+                        // TODO: Implement recording logic
+                    }) {
+                        HStack {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 12, height: 12)
+                            Text(isRecording ? "Stop Recording" : "Record")
+                        }
+                    }
+                    .foregroundColor(.red)
+                    if isRecording {
+                        Text(String(format: "%02d:%02d", recordElapsed / 60, recordElapsed % 60))
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundColor(.red)
+                    }
+                    Button(isPlaying ? "Stop Playback" : "Playback") {
+                        isPlaying.toggle()
+                        // TODO: Implement playback logic
+                    }
+                    .disabled(isRecording)
                 }
                 // Real-time feedback and customization controls will go here
                 Spacer()

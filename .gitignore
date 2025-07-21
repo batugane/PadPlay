@@ -1,0 +1,32 @@
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+*.xcuserdata
+*.xcuserdatad
+*.moved-aside
+*.xcscmblueprint
+
+# macOS
+.DS_Store
+
+# SwiftPM
+.swiftpm/
+
+# User-specific
+PadPlay.xcodeproj/xcuserdata/
+PadPlay.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# Other
+*.swp
+*.swo
+
+# Ignore by default, but keep project and test files
+!PadPlay/
+!PadPlay.xcodeproj/
+!PadPlayTests/
+!PadPlayUITests/ 

@@ -73,20 +73,24 @@ class TrackpadView: NSView {
             let loc = touch.normalizedPosition // (0,0) bottom-left, (1,1) top-right
             let row = min(grid.rows-1, max(0, Int((1.0 - loc.y) * CGFloat(grid.rows))))
             let col = min(grid.columns-1, max(0, Int(loc.x * CGFloat(grid.columns))))
-            if let note = grid.noteFor(row: row, column: col) {
+            // The base note for this column
+            if col < grid.noteMapping[0].count {
+                let baseNote = grid.noteMapping[0][col]
+                // Each row increases the octave (12 semitones)
+                let midiNote = baseNote + UInt8(row) * 12
                 let key = AnyHashable(touch.identity as! NSObject)
                 if isEnding {
-                    AudioEngine.shared.stopNote(midiNote: note)
+                    AudioEngine.shared.stopNote(midiNote: midiNote)
                     activeTouches.removeValue(forKey: key)
                 } else {
-                    if activeTouches[key]?.note != note {
+                    if activeTouches[key]?.note != midiNote {
                         // Stop previous note if moved
                         if let prev = activeTouches[key]?.note {
                             AudioEngine.shared.stopNote(midiNote: prev)
                         }
                         // NSTouch on macOS does not have force; use default velocity
-                        AudioEngine.shared.playNote(midiNote: note, velocity: 100)
-                        activeTouches[key] = (row, col, note, loc)
+                        AudioEngine.shared.playNote(midiNote: midiNote, velocity: 100)
+                        activeTouches[key] = (row, col, midiNote, loc)
                     } else {
                         // Update position if moved
                         activeTouches[key]?.pos = loc
@@ -107,8 +111,14 @@ class TrackpadView: NSView {
         }
         // If no active touches, stop all notes
         if activeTouches.isEmpty {
-            // Stop all possible notes in the grid
-            let allNotes = Set(grid.noteMapping.flatMap { $0 })
+            // Stop all possible notes in the grid (all octaves)
+            let baseNotes = grid.noteMapping[0]
+            var allNotes = Set<UInt8>()
+            for row in 0..<grid.rows {
+                for base in baseNotes {
+                    allNotes.insert(base + UInt8(row) * 12)
+                }
+            }
             for note in allNotes {
                 AudioEngine.shared.stopNote(midiNote: note)
             }

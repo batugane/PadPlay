@@ -12,7 +12,15 @@ struct ContentView: View {
     @State private var currentNotes: Set<UInt8> = []
     @State private var currentTouches: [(CGPoint, UInt8)] = []
     var possibleNotes: [UInt8] {
-        Array(Set(grid.noteMapping.flatMap { $0 })).sorted()
+        // All notes in all octaves (rows)
+        let baseNotes = grid.noteMapping[0]
+        var notes = Set<UInt8>()
+        for row in 0..<grid.rows {
+            for base in baseNotes {
+                notes.insert(base + UInt8(row) * 12)
+            }
+        }
+        return Array(notes).sorted()
     }
     var body: some View {
         VStack(spacing: 20) {

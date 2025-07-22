@@ -150,10 +150,6 @@ struct ContentView: View {
                             .font(.system(.body, design: .monospaced))
                             .foregroundColor(.blue)
                     }
-                    Button("Export") {
-                        AudioEngine.shared.exportRecording()
-                    }
-                    .disabled(!AudioEngine.shared.hasRecording() || isRecording || isPlaying)
                 }
                 if let error = errorMessage {
                     Text(error)

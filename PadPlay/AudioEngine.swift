@@ -99,31 +99,6 @@ public class AudioEngine {
         player = nil
         isPlaying = false
     }
-    /// Export the last recording to a user-selected location
-    public func exportRecording() {
-        guard let url = recordingURL, FileManager.default.fileExists(atPath: url.path) else {
-            print("No recording to export.")
-            return
-        }
-        let panel = NSSavePanel()
-        if #available(macOS 12.0, *) {
-            panel.allowedContentTypes = [.wav]
-        } else {
-            panel.allowedFileTypes = ["wav"]
-        }
-        panel.nameFieldStringValue = "PadPlayRecording.wav"
-        panel.begin { result in
-            if result == .OK, let dest = panel.url {
-                do {
-                    try FileManager.default.copyItem(at: url, to: dest)
-                } catch {
-                    print("Export error: \(error)")
-                }
-            } else if result != .OK {
-                print("Save panel was not displayed or was cancelled.")
-            }
-        }
-    }
     /// Returns true if a recording is available
     public func hasRecording() -> Bool {
         guard let url = recordingURL else { return false }

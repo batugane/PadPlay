@@ -23,12 +23,22 @@ struct ContentView: View {
     @State private var playbackElapsed: Int = 0
     @State private var playbackTimer: Timer? = nil
     @State private var showHelp: Bool = false
+
     var body: some View {
         ZStack(alignment: .topLeading) {
-            VStack(spacing: 20) {
-                Text("PadPlay: Trackpad Musical Instrument")
-                    .font(.title)
-                    .padding(.top)
+            // Subtle background
+            LinearGradient(gradient: Gradient(colors: [Color(NSColor.systemBlue).opacity(0.08), Color(NSColor.windowBackgroundColor)]), startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+            VStack(spacing: 24) {
+                // Friendly header
+                VStack(spacing: 4) {
+                    Text("🎹 PadPlay")
+                        .font(.system(size: 38, weight: .bold, design: .rounded))
+                        .padding(.top, 12)
+                    Text("Turn your trackpad into a musical instrument!")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                }
                 // Octave controls
                 HStack(spacing: 16) {
                     Button("- Octave") { grid = grid.decrementOctave() }
@@ -41,114 +51,19 @@ struct ContentView: View {
                     Text("Base Note: \(baseNoteDisplay())")
                     Button("+ Note") { grid = grid.incrementBaseNote() }
                 }
-                // Trackpad and grid
-                ZStack {
-                    // Trackpad interaction area
-                    TrackpadViewRepresentable(grid: grid, currentNotes: $currentNotes, currentTouches: $currentTouches)
-                        .frame(width: 400, height: 300)
-                        .background(Color.gray.opacity(0.2))
-                        .cornerRadius(16)
-                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.blue, lineWidth: 2))
-                        .padding()
-                        .onAppear {
-                            updateCursor()
-                            // Add key event monitor for arrow up/down/left/right
-                            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                                if event.keyCode == 126 { // Arrow up
-                                    grid = grid.incrementOctave()
-                                    return nil
-                                } else if event.keyCode == 125 { // Arrow down
-                                    grid = grid.decrementOctave()
-                                    return nil
-                                } else if event.keyCode == 124 { // Arrow right
-                                    grid = grid.incrementBaseNote()
-                                    return nil
-                                } else if event.keyCode == 123 { // Arrow left
-                                    grid = grid.decrementBaseNote()
-                                    return nil
-                                } else if event.charactersIgnoringModifiers?.lowercased() == "r" {
-                                    if isRecording {
-                                        AudioEngine.shared.stopRecording()
-                                        isRecording = false
-                                        recordTimer?.invalidate()
-                                        recordTimer = nil
-                                    } else if !isPlaying {
-                                        do {
-                                            try AudioEngine.shared.startRecording()
-                                            isRecording = true
-                                            recordStartTime = Date()
-                                            recordElapsed = 0
-                                            recordTimer?.invalidate()
-                                            recordTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-                                                if let start = recordStartTime {
-                                                    recordElapsed = Int(Date().timeIntervalSince(start))
-                                                }
-                                            }
-                                        } catch {
-                                            errorMessage = "Failed to start recording: \(error.localizedDescription)"
-                                        }
-                                    }
-                                    return nil
-                                } else if event.keyCode == 49 { // Space
-                                    if isPlaying {
-                                        AudioEngine.shared.stopPlayback()
-                                        isPlaying = false
-                                        playbackTimer?.invalidate()
-                                        playbackTimer = nil
-                                    } else if !isRecording && AudioEngine.shared.hasRecording() {
-                                        isPlaying = true
-                                        playbackElapsed = 0
-                                        playbackTimer?.invalidate()
-                                        playbackTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-                                            playbackElapsed += 1
-                                        }
-                                        AudioEngine.shared.playbackRecording {
-                                            isPlaying = false
-                                            playbackTimer?.invalidate()
-                                            playbackTimer = nil
-                                        }
-                                    }
-                                    return nil
-                                } else if event.keyCode == 53 { // Esc
-                                    if isPlaying {
-                                        AudioEngine.shared.stopPlayback()
-                                        isPlaying = false
-                                        playbackTimer?.invalidate()
-                                        playbackTimer = nil
-                                    }
-                                    if isRecording {
-                                        AudioEngine.shared.stopRecording()
-                                        isRecording = false
-                                        recordTimer?.invalidate()
-                                        recordTimer = nil
-                                    }
-                                    return nil
-                                }
-                                return event
-                            }
-                        }
-                        .onDisappear {
-                            updateCursor()
-                            if let monitor = keyMonitor {
-                                NSEvent.removeMonitor(monitor)
-                                keyMonitor = nil
-                            }
-                            recordTimer?.invalidate()
-                            recordTimer = nil
-                            playbackTimer?.invalidate()
-                            playbackTimer = nil
-                        }
-                        .onChange(of: isFullscreen) { _,_ in updateCursor() }
-                    // Visual grid overlay
-                    GeometryReader { geo in
+                // Full-window touch area and grid
+                GeometryReader { geo in
+                    ZStack {
+                        // Visual grid overlay
                         let cellWidth = geo.size.width / CGFloat(grid.columns)
                         let cellHeight = geo.size.height / CGFloat(grid.rows)
-                        ForEach(0..<grid.rows, id: \.self) { row in
-                            ForEach(0..<grid.columns, id: \.self) { col in
-                                Rectangle()
-                                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                                    .frame(width: cellWidth, height: cellHeight)
+                        ForEach(0..<grid.rows, id: \ .self) { row in
+                            ForEach(0..<grid.columns, id: \ .self) { col in
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+                                    .frame(width: cellWidth - 2, height: cellHeight - 2)
                                     .position(x: cellWidth * (CGFloat(col) + 0.5), y: cellHeight * (CGFloat(row) + 0.5))
+                                    .shadow(color: Color.black.opacity(0.07), radius: 3, x: 0, y: 2)
                                 if let note = grid.noteFor(row: row, column: col) {
                                     Text(noteName(midi: note))
                                         .font(.caption2)
@@ -157,17 +72,19 @@ struct ContentView: View {
                                 }
                             }
                         }
-                        // Draw finger positions as circles
+                        // Sparkling blue touch effects
                         ForEach(Array(currentTouches.enumerated()), id: \.offset) { idx, touch in
                             let (pos, _) = touch
-                            Circle()
-                                .fill(Color.red.opacity(0.5))
-                                .frame(width: 28, height: 28)
-                                .position(x: geo.size.width * pos.x, y: geo.size.height * (1.0 - pos.y))
+                            SparkleCircle(position: CGPoint(x: geo.size.width * pos.x, y: geo.size.height * (1.0 - pos.y)))
                         }
+                        // Touch handling overlay (fills the area)
+                        TrackpadViewRepresentable(grid: grid, currentNotes: $currentNotes, currentTouches: $currentTouches)
+                            .frame(width: geo.size.width, height: geo.size.height)
+                            .background(Color.clear)
                     }
-                    .allowsHitTesting(false)
                 }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 8)
                 // Controls for recording and playback only
                 HStack(spacing: 20) {
                     Button(action: {
@@ -244,10 +161,9 @@ struct ContentView: View {
                         .font(.caption)
                         .padding(.top, 4)
                 }
-                // Real-time feedback and customization controls will go here
                 Spacer()
             }
-            .padding()
+            .padding(.bottom, 16)
             // Current notes display in top left, not over grid
             VStack(alignment: .leading, spacing: 4) {
                 Text("Current Notes:")
@@ -258,6 +174,7 @@ struct ContentView: View {
                             .padding(4)
                             .background(Color.blue.opacity(0.2))
                             .cornerRadius(4)
+                            .shadow(color: Color.blue.opacity(0.3), radius: 6, x: 0, y: 2)
                     }
                 }
             }
@@ -305,6 +222,93 @@ struct ContentView: View {
             .padding(32)
             .frame(width: 400, height: 350, alignment: .bottomTrailing)
         }
+        .onAppear {
+            updateCursor()
+            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                if event.keyCode == 126 { // Arrow up
+                    grid = grid.incrementOctave()
+                    return nil
+                } else if event.keyCode == 125 { // Arrow down
+                    grid = grid.decrementOctave()
+                    return nil
+                } else if event.keyCode == 124 { // Arrow right
+                    grid = grid.incrementBaseNote()
+                    return nil
+                } else if event.keyCode == 123 { // Arrow left
+                    grid = grid.decrementBaseNote()
+                    return nil
+                } else if event.charactersIgnoringModifiers?.lowercased() == "r" {
+                    if isRecording {
+                        AudioEngine.shared.stopRecording()
+                        isRecording = false
+                        recordTimer?.invalidate()
+                        recordTimer = nil
+                    } else if !isPlaying {
+                        do {
+                            try AudioEngine.shared.startRecording()
+                            isRecording = true
+                            recordStartTime = Date()
+                            recordElapsed = 0
+                            recordTimer?.invalidate()
+                            recordTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+                                if let start = recordStartTime {
+                                    recordElapsed = Int(Date().timeIntervalSince(start))
+                                }
+                            }
+                        } catch {
+                            errorMessage = "Failed to start recording: \(error.localizedDescription)"
+                        }
+                    }
+                    return nil
+                } else if event.keyCode == 49 { // Space
+                    if isPlaying {
+                        AudioEngine.shared.stopPlayback()
+                        isPlaying = false
+                        playbackTimer?.invalidate()
+                        playbackTimer = nil
+                    } else if !isRecording && AudioEngine.shared.hasRecording() {
+                        isPlaying = true
+                        playbackElapsed = 0
+                        playbackTimer?.invalidate()
+                        playbackTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+                            playbackElapsed += 1
+                        }
+                        AudioEngine.shared.playbackRecording {
+                            isPlaying = false
+                            playbackTimer?.invalidate()
+                            playbackTimer = nil
+                        }
+                    }
+                    return nil
+                } else if event.keyCode == 53 { // Esc
+                    if isPlaying {
+                        AudioEngine.shared.stopPlayback()
+                        isPlaying = false
+                        playbackTimer?.invalidate()
+                        playbackTimer = nil
+                    }
+                    if isRecording {
+                        AudioEngine.shared.stopRecording()
+                        isRecording = false
+                        recordTimer?.invalidate()
+                        recordTimer = nil
+                    }
+                    return nil
+                }
+                return event
+            }
+        }
+        .onDisappear {
+            updateCursor()
+            if let monitor = keyMonitor {
+                NSEvent.removeMonitor(monitor)
+                keyMonitor = nil
+            }
+            recordTimer?.invalidate()
+            recordTimer = nil
+            playbackTimer?.invalidate()
+            playbackTimer = nil
+        }
     }
     // Helper to convert MIDI note to name
     func noteName(midi: UInt8) -> String {
@@ -329,6 +333,34 @@ struct ContentView: View {
         } else {
             NSCursor.unhide()
         }
+    }
+}
+
+// Sparkling blue touch effect
+struct SparkleCircle: View {
+    var position: CGPoint
+    @State private var animate = false
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(LinearGradient(gradient: Gradient(colors: [Color.blue.opacity(0.7), Color.cyan.opacity(0.5)]), startPoint: .top, endPoint: .bottom))
+                .frame(width: animate ? 38 : 28, height: animate ? 38 : 28)
+                .shadow(color: Color.blue.opacity(0.4), radius: animate ? 18 : 8)
+                .scaleEffect(animate ? 1.15 : 1.0)
+                .opacity(animate ? 0.7 : 1.0)
+                .animation(Animation.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: animate)
+                .onAppear { animate = true }
+            ForEach(0..<6) { i in
+                Circle()
+                    .fill(Color.cyan.opacity(0.5))
+                    .frame(width: 6, height: 6)
+                    .offset(x: (animate ? 18 : 12) * cos(CGFloat(i) * .pi / 3),
+                            y: (animate ? 18 : 12) * sin(CGFloat(i) * .pi / 3))
+                    .opacity(animate ? 0.5 : 0.3)
+                    .animation(Animation.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: animate)
+            }
+        }
+        .position(position)
     }
 }
 

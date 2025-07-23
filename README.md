@@ -1,5 +1,9 @@
 # PadPlay
 
+<p align="center">
+  <img src="PadPlay/Assets.xcassets/AppIcon.appiconset/PadPlay.png" alt="PadPlay Logo" width="128" height="128"/>
+</p>
+
 PadPlay turns your Mac trackpad into a powerful musical instrument.
 
 ## Features
@@ -7,7 +11,6 @@ PadPlay turns your Mac trackpad into a powerful musical instrument.
 - **Octave & Note Shifting:** Shift the entire grid up/down by octave or left/right by semitone (base note) using buttons or arrow keys.
 - **Recording:** Record your performance to a WAV file.
 - **Playback:** Instantly play back your last recording.
-- **Export:** Save your recording to any location on your Mac.
 - **Keyboard Shortcuts:**
   - ↑ / ↓ : Change octave
   - ← / → : Change base note
@@ -19,7 +22,7 @@ PadPlay turns your Mac trackpad into a powerful musical instrument.
 ## Usage
 1. Open `PadPlay.xcodeproj` in Xcode (macOS 12+ recommended).
 2. Build and run the app.
-3. Use your trackpad to play notes. Use the on-screen or keyboard controls to record, playback, and export.
+3. Use your trackpad to play notes. Use the on-screen or keyboard controls to record and playback.
 
 ## Project Structure
 - `PadPlay/` — Main app source code
@@ -29,6 +32,3 @@ PadPlay turns your Mac trackpad into a powerful musical instrument.
 
 ## Contributing
 Pull requests and issues are welcome!
-
-## License
-MIT License 

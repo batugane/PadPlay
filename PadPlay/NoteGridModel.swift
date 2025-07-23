@@ -6,6 +6,8 @@ public struct NoteGridModel {
     public let columns: Int
     public var noteMapping: [[UInt8]] // MIDI note numbers (for one octave)
     public var baseOctave: Int // The lowest octave (e.g., 3 for C3)
+    public static let baselineOctave: Int = 3
+    public static let baselineNote: UInt8 = 0
     
     /// Initialize with a default scale (e.g., C major) and octaves 3, 4, 5
     public static func defaultGrid(rows: Int = 3, columns: Int = 8, baseOctave: Int = 3) -> NoteGridModel {
@@ -30,18 +32,18 @@ public struct NoteGridModel {
     public func incrementOctave() -> NoteGridModel {
         NoteGridModel(rows: rows, columns: columns, noteMapping: noteMapping, baseOctave: baseOctave + 1)
     }
-    /// Decrease the base octave (shift all down)
+    /// Decrease the base octave (shift all down, but not below baseline)
     public func decrementOctave() -> NoteGridModel {
-        NoteGridModel(rows: rows, columns: columns, noteMapping: noteMapping, baseOctave: max(0, baseOctave - 1))
+        NoteGridModel(rows: rows, columns: columns, noteMapping: noteMapping, baseOctave: max(NoteGridModel.baselineOctave, baseOctave - 1))
     }
     /// Increase the base note (shift all notes up by 1 semitone)
     public func incrementBaseNote() -> NoteGridModel {
         let newMapping = noteMapping.map { $0.map { min($0 + 1, 127) } }
         return NoteGridModel(rows: rows, columns: columns, noteMapping: newMapping, baseOctave: baseOctave)
     }
-    /// Decrease the base note (shift all notes down by 1 semitone)
+    /// Decrease the base note (shift all notes down by 1 semitone, but not below baseline)
     public func decrementBaseNote() -> NoteGridModel {
-        let newMapping = noteMapping.map { $0.map { max($0 - 1, 0) } }
+        let newMapping = noteMapping.map { $0.map { max(NoteGridModel.baselineNote, UInt8(max(Int($0) - 1, 0))) } }
         return NoteGridModel(rows: rows, columns: columns, noteMapping: newMapping, baseOctave: baseOctave)
     }
 } 

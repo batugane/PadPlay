@@ -42,12 +42,14 @@ struct ContentView: View {
                 // Octave controls
                 HStack(spacing: 16) {
                     Button("- Octave") { grid = grid.decrementOctave() }
+                        .disabled(grid.baseOctave <= NoteGridModel.baselineOctave)
                     Text("Octaves: \(grid.baseOctave)-\(grid.baseOctave + grid.rows - 1)")
                     Button("+ Octave") { grid = grid.incrementOctave() }
                 }
                 // Base note controls
                 HStack(spacing: 16) {
                     Button("- Note") { grid = grid.decrementBaseNote() }
+                        .disabled(grid.noteMapping.first?.first ?? 0 <= NoteGridModel.baselineNote)
                     Text("Base Note: \(baseNoteDisplay())")
                     Button("+ Note") { grid = grid.incrementBaseNote() }
                 }
